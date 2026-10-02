@@ -1,0 +1,69 @@
+# pihole-sync configuration example
+# Copy to config.yaml and edit. Values support ${ENV_VAR} interpolation.
+
+sync:
+  # How often to poll the primary for changes (seconds)
+  interval_seconds: 300
+
+  # Re-run `pihole -g` on replicas after adlist changes:
+  #   auto   = only when adlists/groups changed
+  #   always = after every sync
+  #   never  = never (you run gravity yourself)
+  run_gravity: auto
+
+  # Restart pihole-FTL on replicas:
+  #   auto   = only when settings changed
+  #   always = after every sync
+  #   never  = never
+  restart_dns: auto
+
+  # Sync general settings (upstreams, cache, interface behaviour, ...) via /api/config
+  sync_settings: true
+
+  # Sync Local DNS records (dns.hosts) and Local CNAMEs (dns.cnameRecords)
+  sync_local_dns: true
+  sync_local_cnames: true
+
+  # Sync static DHCP assignments (dhcp.hosts) - enable only if all instances
+  # serve DHCP for the same LAN (normally keep off)
+  sync_static_dhcp: false
+
+  # Also push even when the primary has NOT changed since the last sync.
+  # Use this to fix manual edits made directly on replicas.
+  reconcile: false
+
+  # Delete items on replicas that do not exist on the primary.
+  # Safety-first defaults: deletion is opt-in per kind.
+  delete_extra_lists: false      # adlists
+  delete_extra_domains: false    # allow/deny domains
+  delete_extra_groups: false     # groups
+  delete_extra_clients: false    # client management entries
+
+  # Config paths (dot notation) that are NEVER synced. Matched by prefix.
+  # Secrets are always excluded automatically (they are masked by the API anyway).
+  exclude_config_paths:
+    - dhcp            # never touch DHCP settings on replicas
+    # - dns.port      # example: keep replica-specific port
+    # - misc.dnsmasq_lines
+
+primary:
+  # The source of truth. Can be a container name (same docker network),
+  # a LAN IP, or http://localhost:80 if the syncer shares the pihole container's network.
+  host: http://pihole:80
+  # Web interface / API password (or an application password - recommended).
+  password: ${PIHOLE_PRIMARY_PASSWORD}
+  verify_tls: true
+
+replicas:
+  - name: pihole2
+    host: http://192.168.1.23:80
+    password: ${PIHOLE_REPLICA_PASSWORD}
+    verify_tls: true
+    # Optional per-replica overrides of the sync.* toggles:
+    # sync_settings: false
+    # exclude_config_paths: [dns.port, dhcp]
+    # delete_extra_lists: true
+  - name: pihole3
+    host: http://192.168.1.24:80
+    password: ${PIHOLE_REPLICA_PASSWORD}
+    verify_tls: true

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pihole-sync dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2430; --border: #2d333b;
+    --text: #e6edf3; --muted: #8b949e; --accent: #9146ff; --ok: #3fb950;
+    --warn: #d29922; --err: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 14px 22px; background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 17px; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .dot.ok { background: var(--ok); } .dot.err { background: var(--err); }
+  .dot.warn { background: var(--warn); }
+  .spacer { flex: 1; }
+  .muted { color: var(--muted); }
+  button {
+    background: var(--accent); color: #fff; border: 0; border-radius: 6px;
+    padding: 8px 16px; font-size: 14px; cursor: pointer; font-weight: 600;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); font-weight: 400; }
+  main { padding: 22px; max-width: 1200px; margin: 0 auto; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 15px; }
+  .card .host { color: var(--muted); font-size: 12px; word-break: break-all; }
+  .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+  .row .k { color: var(--muted); }
+  .badge {
+    display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+  }
+  .badge.ok { background: rgba(63,185,80,.15); color: var(--ok); }
+  .badge.err { background: rgba(248,81,73,.15); color: var(--err); }
+  .badge.warn { background: rgba(210,153,34,.15); color: var(--warn); }
+  .badge.pending { background: rgba(139,148,158,.15); color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip {
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 5px;
+    padding: 2px 8px; font-size: 12px;
+  }
+  .errbox {
+    margin-top: 8px; background: rgba(248,81,73,.08); border: 1px solid rgba(248,81,73,.35);
+    border-radius: 6px; padding: 8px 10px; font-size: 12.5px; color: #ffb3ad;
+    word-break: break-word;
+  }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  td.ts { white-space: nowrap; color: var(--muted); }
+  .banner {
+    background: rgba(248,81,73,.1); border: 1px solid rgba(248,81,73,.4); color: #ffb3ad;
+    padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 13px;
+  }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 18px; }
+  #toast {
+    position: fixed; bottom: 20px; right: 20px; background: var(--panel2);
+    border: 1px solid var(--border); padding: 10px 16px; border-radius: 8px; display: none;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>&#9678; pihole-sync <span class="muted" id="appVersion"></span></h1>
+  <span class="muted" id="cycleInfo"></span>
+  <div class="spacer"></div>
+  <button id="syncBtn">Sync now</button>
+</header>
+<main>
+  <div class="banner" id="primaryError" style="display:none"></div>
+
+  <div class="grid" id="cards"></div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>Recent activity</h2>
+    <table>
+      <thead><tr><th>Time</th><th>Trigger</th><th>Status</th><th>Details</th></tr></thead>
+      <tbody id="history"></tbody>
+    </table>
+  </div>
+</main>
+<footer>Source of truth: <span id="primaryHost" class="muted"></span> &middot; auto-refresh 5s</footer>
+<div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let busy = false;
+
+function fmt(ts) {
+  if (!ts) return "never";
+  return new Date(ts * 1000).toLocaleString();
+}
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function statusBadge(s) {
+  const cls = { ok: "ok", error: "err", running: "warn", pending: "pending" }[s] || "pending";
+  const label = { ok: "in sync", error: "error", running: "syncing", pending: "pending" }[s] || s;
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function opsChip(kind, ops) {
+  if (!ops || (!ops.added && !ops.updated && !ops.removed)) return "";
+  return `<span class="chip">${kind}: +${ops.added || 0} / ~${ops.updated || 0} / &minus;${ops.removed || 0}</span>`;
+}
+
+function card(replica) {
+  const c = replica.changes || {};
+  const chips = [
+    opsChip("groups", c.groups), opsChip("lists", c.lists), opsChip("domains", c.domains),
+    opsChip("clients", c.clients),
+    (c.config_leaves ? `<span class="chip">settings: ${c.config_leaves}</span>` : ""),
+    (replica.gravity_ran ? `<span class="chip">gravity</span>` : ""),
+    (replica.restart_ran ? `<span class="chip">FTL restart</span>` : ""),
+  ].filter(Boolean).join("");
+  const err = replica.error ? `<div class="errbox">${esc(replica.error)}</div>` : "";
+  return `<div class="card">
+    <h2>${esc(replica.name)} ${statusBadge(replica.status)}</h2>
+    <div class="host">${esc(replica.host)}</div>
+    <div class="row"><span class="k">Last sync</span><span>${fmt(replica.last_sync_ts)}</span></div>
+    <div class="row"><span class="k">Duration</span><span>${replica.duration != null ? replica.duration + "s" : "-"}</span></div>
+    <div class="chips">${chips || '<span class="chip">no changes</span>'}</div>
+    ${err}
+  </div>`;
+}
+
+function primaryCard(p) {
+  const cnt = p.counts || {};
+  const chips = [
+    cnt.groups != null && `<span class="chip">groups: ${cnt.groups}</span>`,
+    cnt.lists != null && `<span class="chip">adlists: ${cnt.lists}</span>`,
+    cnt.domains != null && `<span class="chip">domains: ${cnt.domains}</span>`,
+    p.version && `<span class="chip">${esc(p.version)}</span>`,
+  ].filter(Boolean).join("");
+  return `<div class="card">
+    <h2>${esc(p.name)} ${statusBadge(p.status)}</h2>
+    <div class="host">primary &middot; ${esc(p.host)}</div>
+    <div class="chips">${chips || '<span class="chip">waiting for first poll</span>'}</div>
+    ${p.error ? `<div class="errbox">${esc(p.error)}</div>` : ""}
+  </div>`;
+}
+
+async function refresh() {
+  try {
+    const s = await (await fetch("/api/status")).json();
+    $("appVersion").textContent = "v" + s.app.version;
+    $("primaryHost").textContent = s.primary.host;
+    const pe = $("primaryError");
+    if (s.primary.status === "error" && s.primary.error) {
+      pe.style.display = "block";
+      pe.textContent = "Primary error: " + s.primary.error;
+    } else pe.style.display = "none";
+    if (s.primary.version) $("primaryHost").textContent = s.primary.host;
+    const lc = s.last_cycle;
+    $("cycleInfo").textContent = s.running ? "sync running\u2026"
+      : (lc ? `last run ${fmt(lc.ts)} (${lc.reason}, ${lc.duration ?? "?"}s)` : "no run yet");
+    const cards = [primaryCard(s.primary)].concat(s.replicas.map(card));
+    $("cards").innerHTML = cards.join("");
+    $("history").innerHTML = (s.history || []).map(h => `
+      <tr>
+        <td class="ts">${fmt(h.ts)}</td>
+        <td>${esc(h.reason)}</td>
+        <td>${h.ok ? '<span class="badge ok">ok</span>' : '<span class="badge err">error</span>'}</td>
+        <td>${esc(h.message)}</td>
+      </tr>`).join("") || '<tr><td colspan="4" class="muted">no activity yet</td></tr>';
+  } catch (e) {
+    $("cycleInfo").textContent = "dashboard error: " + e;
+  }
+}
+
+$("syncBtn").onclick = async () => {
+  if (busy) return;
+  busy = true;
+  $("syncBtn").disabled = true;
+  try {
+    const r = await fetch("/api/sync", { method: "POST" });
+    if (r.status === 409) toast("Sync already running");
+    else toast("Sync triggered");
+  } catch (e) { toast("Failed: " + e); }
+  setTimeout(() => { busy = false; $("syncBtn").disabled = false; refresh(); }, 1500);
+};
+
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.style.display = "block";
+  setTimeout(() => t.style.display = "none", 2500);
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+[project]
+name = "pihole-sync"
+version = "0.1.0"
+description = "Keep multiple Pi-hole v6 instances in sync: blocklists, whitelists, local DNS and settings, with a small dashboard"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "httpx>=0.27,<1.0",
+  "fastapi>=0.110,<1.0",
+  "uvicorn>=0.29,<1.0",
+  "PyYAML>=6.0,<7.0",
+]
+
+[project.scripts]
+pihole-sync = "pihole_sync.main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["pihole_sync*"]
+
+[tool.setuptools.package-data]
+pihole_sync = ["static/*"]

@@ -1,0 +1,26 @@
+# docker-compose for the PRIMARY pihole Raspberry Pi (pi@pihole)
+#
+# Files expected next to this file:
+#   config.yaml   - see config.yaml in this folder (fill in password env names)
+#   .env          - holds the actual passwords (never commit this)
+#
+# Uses network_mode: host so the syncer can reach:
+#   - the pihole running on THIS Pi            -> http://127.0.0.1:80
+#   - the replica pihole at 10.0.0.6           -> http://10.0.0.6:80
+#   (If your pihole web UI is on a different port, change the URL in config.yaml.)
+
+services:
+  pihole-sync:
+    image: 10.0.0.40:5000/pihole-sync:latest
+    container_name: pihole-sync
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      PIHOLE_PRIMARY_PASSWORD: ${PIHOLE_PRIMARY_PASSWORD:?set in .env}
+      PIHOLE_REPLICA_PASSWORD: ${PIHOLE_REPLICA_PASSWORD:?set in .env}
+      PIHOLE_SYNC_PORT: "8900"     # dashboard (8080 is taken on this Pi)
+      TZ: "America/New_York"
+      LOG_LEVEL: INFO
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+      - ./data:/data

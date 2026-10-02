@@ -1,0 +1,9 @@
+.git
+.github
+specs
+data
+__pycache__
+*.pyc
+.venv
+README.md
+config.example.yaml
