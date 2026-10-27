@@ -1,8 +1,6 @@
 services:
   pihole-sync:
-    build:
-      context: .
-    image: pihole-sync:local
+    image: eldieturner/pihole-sync:0.2.2
     container_name: pihole-sync
     restart: unless-stopped
     env_file:

@@ -42,7 +42,7 @@ builds will break arm pulls!):
 ```powershell
 docker buildx build --builder desktop-linux `
   --platform linux/amd64,linux/arm64,linux/arm/v7 `
-  -t 10.0.0.40:5000/pihole-sync:latest -t 10.0.0.40:5000/pihole-sync:0.2.1 `
+  -t 10.0.0.40:5000/pihole-sync:latest -t 10.0.0.40:5000/pihole-sync:0.2.2 `
   --provenance=false --push .
 ```
 
@@ -62,18 +62,44 @@ cd ~/pihole-sync
 docker compose pull && docker compose up -d
 ```
 
-## Publishing to Docker Hub (automatic)
+## Public Docker Hub image
 
-The GitHub Actions workflow (`.github/workflows/ci.yml`) runs the offline
-self-test on every push. The multi-arch publish job activates when the repo
-has:
+The public repository is https://hub.docker.com/r/eldieturner/pihole-sync.
+The root `docker-compose.yml` pulls `eldieturner/pihole-sync:0.2.2`.
+Use `docker-compose.build.yml` for a standalone source-build deployment.
+The public image includes its license and reference files at
+`/usr/share/doc/pihole-sync/`. The root `.env.example` and
+`config.example.yaml` contain placeholders, never live credentials.
 
-- **Variable**: `DOCKERHUB_USERNAME`
-- **Secret**: `DOCKERHUB_TOKEN`
+For future GitHub Actions releases, configure:
 
-Then: pushes to `main` → `:latest`, tags `v*` → semver tags. Switch the Pi's
-compose `image:` to `docker.io/<user>/pihole-sync:latest` — no
-insecure-registry config needed for Docker Hub.
+- Repository variable `DOCKERHUB_USERNAME=eldieturner`.
+- Repository secret `DOCKERHUB_TOKEN`: a dedicated Docker Hub token with
+  repository read/write permission. Existing desktop credentials are not
+  copied into GitHub Secrets automatically.
+
+Push a `vX.Y.Z` tag after matching the package and Dockerfile versions, or
+run the workflow manually. CI tests the source, publishes all three CPU
+architectures with version/minor/latest tags, then updates the Docker Hub
+overview from `docs/DOCKERHUB.md`. Ordinary `main` pushes run tests without
+republishing a release. Missing publishing configuration leaves the
+publishing job skipped.
+
+For a manual publication, authenticate with `docker login`, run the
+multi-arch build below, and update the repository overview using the
+support script:
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7 \
+  -t eldieturner/pihole-sync:0.2.2 -t eldieturner/pihole-sync:0.2 \
+  -t eldieturner/pihole-sync:latest --provenance=false --push .
+# Export DOCKERHUB_USERNAME and a dedicated DOCKERHUB_TOKEN first.
+python scripts/update_dockerhub_description.py
+```
+
+The description script uses verified HTTPS and never prints token values.
+It updates an existing Docker Hub repository; create the public repository
+before the first publication. It does not modify account-wide settings.
 
 ## Troubleshooting
 

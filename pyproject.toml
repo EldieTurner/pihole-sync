@@ -1,6 +1,6 @@
 [project]
 name = "pihole-sync"
-version = "0.2.1"
+version = "0.2.2"
 description = "Keep multiple Pi-hole v6 instances in sync: blocklists, whitelists, local DNS and settings, with a small dashboard"
 readme = "README.md"
 requires-python = ">=3.10"

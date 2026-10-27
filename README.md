@@ -1,6 +1,7 @@
 # pihole-sync
 
 [![CI](https://github.com/EldieTurner/pihole-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/EldieTurner/pihole-sync/actions/workflows/ci.yml)
+[![Docker Hub](https://img.shields.io/docker/v/eldieturner/pihole-sync?sort=semver)](https://hub.docker.com/r/eldieturner/pihole-sync)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Synchronize lists, domain rules, groups, clients, and selected settings from one **Pi-hole v6** instance to one or more replicas. A small web dashboard shows results and lets you trigger a sync.
@@ -71,12 +72,14 @@ Application-password sessions cannot modify configuration settings unless that P
 
 ## Quick start with Docker Compose
 
-The public quick start **builds the image from this repository**. It does not assume that a prebuilt public Docker Hub image exists. Maintainer-specific local-registry instructions are in [the deployment guide](docs/DEPLOYMENT.md).
+The public image is **[eldieturner/pihole-sync](https://hub.docker.com/r/eldieturner/pihole-sync)** on Docker Hub. Use `:0.2.2` for this release, `:0.2` for the current minor series, or `:latest` for the newest published release. Images support `linux/amd64`, `linux/arm64`, and `linux/arm/v7`. Pin a version or digest for controlled upgrades.
+
+The quick start pulls the public image. A source-build alternative is provided in [docker-compose.build.yml](docker-compose.build.yml); maintainer-specific registry instructions are in [the deployment guide](docs/DEPLOYMENT.md).
 
 The shell examples below use Bash, including WSL on Windows. Run them from the cloned repository.
 
 ```bash
-git clone https://github.com/EldieTurner/pihole-sync.git
+git clone --branch v0.2.2 https://github.com/EldieTurner/pihole-sync.git
 cd pihole-sync
 mkdir -p data
 cp config.example.yaml config.yaml
@@ -90,9 +93,7 @@ The repository's [docker-compose.yml](docker-compose.yml) contains:
 ```yaml
 services:
   pihole-sync:
-    build:
-      context: .
-    image: pihole-sync:local
+    image: eldieturner/pihole-sync:0.2.2
     container_name: pihole-sync
     restart: unless-stopped
     env_file:
@@ -105,10 +106,10 @@ services:
       - ./data:/data
 ```
 
-Build, validate the configuration without contacting Pi-hole, then start:
+Pull, validate the configuration without contacting Pi-hole, then start:
 
 ```bash
-docker compose build --pull
+docker compose pull pihole-sync
 docker compose run --rm --no-deps pihole-sync python -m pihole_sync --validate
 docker compose up -d
 docker compose logs -f --tail=100 pihole-sync
@@ -215,10 +216,10 @@ On Windows, restrict access through file permissions. Environment variables are 
 
 ## Run with docker run
 
-Use the same `config.yaml`, `.env`, and `data/` directory as above. Build a local image for the current machine's architecture:
+Use the same `config.yaml`, `.env`, and `data/` directory as above:
 
 ```bash
-docker build -t pihole-sync:local .
+docker pull eldieturner/pihole-sync:0.2.2
 
 docker run -d \
   --name pihole-sync \
@@ -227,7 +228,7 @@ docker run -d \
   --publish 127.0.0.1:8080:8080 \
   --mount type=bind,source="$(pwd)/config.yaml",target=/config/config.yaml,readonly \
   --mount type=bind,source="$(pwd)/data",target=/data \
-  pihole-sync:local
+  eldieturner/pihole-sync:0.2.2
 
 docker logs -f --tail=100 pihole-sync
 ```
@@ -244,7 +245,7 @@ The image uses a `CMD`, not an `ENTRYPOINT`. When overriding its command, includ
 docker run --rm \
   --env-file .env \
   --mount type=bind,source="$(pwd)/config.yaml",target=/config/config.yaml,readonly \
-  pihole-sync:local python -m pihole_sync --validate
+  eldieturner/pihole-sync:0.2.2 python -m pihole_sync --validate
 ```
 
 Validation loads the configuration and checks environment references and recognized sync option names. It prints a summary without printing passwords. It does **not** test API connectivity, credentials, permissions, or every possible configuration value. There is no preview/dry-run mode for proposed remote changes.
@@ -266,7 +267,7 @@ docker run --rm \
   --env-file .env \
   --mount type=bind,source="$(pwd)/config.yaml",target=/config/config.yaml,readonly \
   --mount type=bind,source="$(pwd)/data",target=/data \
-  pihole-sync:local python -m pihole_sync --once
+  eldieturner/pihole-sync:0.2.2 python -m pihole_sync --once
 ```
 
 `--once` performs a **forced reconciliation**, even when `reconcile: false`. The dashboard's **Sync now** button and `POST /api/sync` do the same. They can overwrite replica-only edits and, when deletion options are enabled, remove extra replica items. Deletion remains disabled unless explicitly configured.
@@ -385,16 +386,23 @@ If filtering differs between clients, query each Pi-hole directly and inspect it
 
 ## Updates, backups, and recovery
 
-For a source-built Compose deployment:
+For the Docker Hub Compose deployment, review the release notes and update the pinned image version in `docker-compose.yml` before pulling:
 
 ```bash
-git pull --ff-only
-docker compose build --pull
+docker compose pull pihole-sync
 docker compose up -d --no-deps pihole-sync
 docker compose logs --tail=100 pihole-sync
 ```
 
-Review configuration and release changes first. For a registry deployment, replace the `build` section and local image name with a verified registry image/tag or digest, then use `docker compose pull pihole-sync` before recreating the service. Prefer a fixed release tag or digest when you need reproducible rollbacks.
+For the source-build alternative, update your checkout and use its standalone Compose file:
+
+```bash
+git pull --ff-only
+docker compose -f docker-compose.build.yml build --pull
+docker compose -f docker-compose.build.yml up -d --no-deps pihole-sync
+```
+
+Cloning a release tag produces a detached checkout. Select a newer release tag, or switch to `main` before using `git pull`. Retain the previous image tag/digest and your backups for rollback; do not overwrite an existing version tag when publishing.
 
 Back up each Pi-hole separately before significant changes. The sync service's state is not a substitute for Pi-hole backups. To make a consistent file backup of the service, stop it and copy `config.yaml`, `.env`, and the **whole** `data/` directory, then start it again. Stopping this service does not stop Pi-hole DNS.
 
@@ -418,17 +426,19 @@ On Windows, activate with `.venv\Scripts\Activate.ps1`. A direct Python run does
 
 The offline tests cover synchronization behavior and HTTP request compatibility without contacting real Pi-holes. Live API tests require reachable Pi-hole instances and appropriate credentials.
 
+For a local source build, run `docker build -t pihole-sync:local .` or use `docker-compose.build.yml`. The image includes `README.md`, `LICENSE`, and sample Compose/config/environment files under `/usr/share/doc/pihole-sync/`; no live credentials are included.
+
 To publish a multi-architecture image to **your own** registry, replace `registry.example.com/your-user` with a registry path you control:
 
 ```bash
 docker buildx build \
   --platform linux/amd64,linux/arm64,linux/arm/v7 \
-  --tag registry.example.com/your-user/pihole-sync:0.2.1 \
+  --tag registry.example.com/your-user/pihole-sync:0.2.2 \
   --provenance=false \
   --push .
 ```
 
-Use a builder that supports these platforms. A normal local `docker build` creates an image for the current platform; do not overwrite an existing multi-platform registry tag with a single-platform push. Private HTTP registries need explicit Docker trust configuration; prefer TLS for shared/public registries. [Detailed deployment and registry guide](docs/DEPLOYMENT.md)
+Use a builder that supports these platforms. A normal local `docker build` creates an image for the current platform; do not overwrite an existing multi-platform registry tag with a single-platform push. Private HTTP registries need explicit Docker trust configuration; prefer TLS for shared/public registries. [Detailed deployment and registry guide](docs/DEPLOYMENT.md). The repository includes a [Docker Hub overview](docs/DOCKERHUB.md), [publishing workflow](.github/workflows/ci.yml), and [release history](CHANGELOG.md)
 
 Contributions are welcome through [issues](https://github.com/EldieTurner/pihole-sync/issues) and pull requests. Include the pihole-sync and Pi-hole versions, deployment method, sanitized configuration, and relevant errors when reporting a bug. Read [AGENTS.md](AGENTS.md) and [ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing the engine or API client.
 
