@@ -43,6 +43,12 @@ sync:
   # Secrets are always excluded automatically (they are masked by the API anyway).
   exclude_config_paths:
     - dhcp            # never touch DHCP settings on replicas
+    - webserver       # preserve per-instance web serving and authentication settings
+    - files           # preserve per-instance filesystem paths
+    # If these settings are controlled by FTLCONF_* Docker variables, exclude them:
+    # - dns.upstreams
+    # - dns.listeningMode
+    # - dns.dnssec
     # - dns.port      # example: keep replica-specific port
     # - misc.dnsmasq_lines
 

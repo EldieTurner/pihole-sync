@@ -9,6 +9,10 @@ import asyncio
 import json
 import tempfile
 
+import httpx
+
+from .api import PiholeClient
+
 from .config import SyncOptions
 from .config import Node
 from .state import StateStore
@@ -180,7 +184,42 @@ def make_engine(primary: FakePihole, replicas: dict, opts: SyncOptions = None):
     return SyncEngine(cfg, store, client_factory=factory)
 
 
+async def check_list_creation_query_type() -> None:
+    """FTL 6.8 rejects list creation without the type query parameter."""
+    requests = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/auth":
+            if request.method == "DELETE":
+                return httpx.Response(204)
+            return httpx.Response(200, json={"session": {
+                "valid": True, "sid": "offline-session", "validity": 1800}})
+        assert request.method == "POST" and request.url.path == "/api/lists"
+        ltype = request.url.params.get("type")
+        if ltype not in ("block", "allow"):
+            return httpx.Response(400, json={"error": {
+                "message": "Specify type parameter"}})
+        body = json.loads(request.content)
+        assert body["type"] == ltype
+        assert body["address"] == "https://example.com/" + ltype
+        assert body["groups"] == [0, 2]
+        assert body["comment"] == "offline list"
+        assert body["enabled"] is False
+        requests.append(ltype)
+        return httpx.Response(201, json={"lists": [body]})
+
+    client = PiholeClient("http://offline", password="offline")
+    await client._http.aclose()
+    client._http = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+    async with client:
+        for ltype in ("block", "allow"):
+            await client.add_list("https://example.com/" + ltype, ltype,
+                                  comment="offline list", groups=[0, 2], enabled=False)
+    assert requests == ["block", "allow"]
+
+
 async def run_tests() -> None:
+    await check_list_creation_query_type()
     # ---- scenario 1: initial full sync --------------------------------
     primary = FakePihole()
     primary.lists = [{"address": "https://example.com/hosts", "type": "block",

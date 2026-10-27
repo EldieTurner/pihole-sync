@@ -2,7 +2,8 @@ FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="pihole-sync" \
       org.opencontainers.image.description="Synchronise blocklists, whitelists, local DNS and settings from a primary Pi-hole (v6) to replicas" \
-      org.opencontainers.image.source="https://github.com/yourname/pihole-sync" \
+      org.opencontainers.image.source="https://github.com/EldieTurner/pihole-sync" \
+      org.opencontainers.image.version="0.2.1" \
       org.opencontainers.image.licenses="MIT"
 
 ENV PYTHONUNBUFFERED=1 \

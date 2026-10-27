@@ -8,7 +8,7 @@ Endpoint shapes were verified against the official FTL v6.2 API specs
   TOTP) are used as `password`.
 - GET/POST /api/groups, PUT/DELETE /api/groups/{name},
   POST /api/groups:batchDelete  [{"item": name}]
-- POST /api/lists {"address": ..., "type": block|allow, "comment", "groups",
+- POST /api/lists?type={block|allow} {"address": ..., "type": block|allow, "comment", "groups",
   "enabled"}; PUT /api/lists/{address}?type=...; POST /api/lists:batchDelete
   [{"item": address, "type": ...}]
 - POST /api/domains/{type}/{kind} {"domain": ...}; PUT
@@ -228,7 +228,7 @@ class PiholeClient:
         body = {"address": address, "type": ltype, "comment": comment, "enabled": bool(enabled)}
         if groups is not None:
             body["groups"] = groups
-        return await self.request("POST", "/lists", json=body)
+        return await self.request("POST", "/lists", params={"type": ltype}, json=body)
 
     async def update_list(
         self, address: str, ltype: str, comment: str = "", groups: Optional[list] = None, enabled: bool = True

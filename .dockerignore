@@ -7,3 +7,8 @@ __pycache__
 .venv
 README.md
 config.example.yaml
+
+# Never send live credentials to a build context.
+.env
+config.yaml
+deploy/.env

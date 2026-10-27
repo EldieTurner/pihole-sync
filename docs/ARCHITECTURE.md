@@ -114,7 +114,7 @@ Key facts the client depends on — verify these if Pi-hole changes:
   - `POST /api/groups {"name", "comment", "enabled"}`,
     `PUT /api/groups/{name}` (URL-encoded), `POST /api/groups:batchDelete`
     `[{"item": name}]`
-  - `POST /api/lists {"address", "type": block|allow, "comment", "groups",
+  - `POST /api/lists?type={block|allow} {"address", "type": block|allow, "comment", "groups",
     "enabled"}`, `PUT /api/lists/{address-url-encoded}?type=...`,
     `POST /api/lists:batchDelete [{"item", "type"}]`
   - `POST /api/domains/{allow|deny}/{exact|regex} {"domain", ...}`,
@@ -139,6 +139,16 @@ Key facts the client depends on — verify these if Pi-hole changes:
 - **Static DHCP assignments** live in config at `dhcp.hosts` (array of
   strings). DHCP scope settings (`dhcp.active`, `dhcp.start`, ...) are never
   synced.
+
+### FTL 6.8 list creation
+
+FTL 6.8 requires the `type=block|allow` query parameter on `POST /api/lists`;
+putting `type` only in the JSON body returns HTTP 400. The client sends the
+query parameter and retains the body field for compatibility with older
+instances. This was verified against the [FTL 6.8 list specification](https://github.com/pi-hole/FTL/blob/v6.8/src/api/docs/content/specs/lists.yaml)
+and successful list creation on both live instances. The offline self-test
+also exercises the real HTTP client against a transport requiring the query
+parameter for both block and allow lists.
 
 ## State
 

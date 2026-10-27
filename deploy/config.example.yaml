@@ -1,0 +1,31 @@
+# Deployment template for the current Docker-based Pi-hole pair.
+# Copy to config.yaml and supply passwords through environment variables.
+sync:
+  interval_seconds: 300
+  run_gravity: auto
+  restart_dns: auto
+  sync_settings: true
+  sync_local_dns: true
+  sync_local_cnames: true
+  reconcile: true
+  delete_extra_lists: true
+  delete_extra_domains: true
+  delete_extra_groups: true
+  exclude_config_paths:
+    - dhcp
+    - webserver
+    - files
+    - dns.port
+    # These settings are managed by FTLCONF_* variables on each Pi-hole.
+    - dns.upstreams
+    - dns.listeningMode
+    - dns.dnssec
+
+primary:
+  host: http://10.0.0.2:80
+  password: ${PIHOLE_PRIMARY_PASSWORD}
+
+replicas:
+  - name: pihole2
+    host: http://10.0.0.3:80
+    password: ${PIHOLE_REPLICA_PASSWORD}

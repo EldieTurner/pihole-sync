@@ -1,12 +1,12 @@
 # docker-compose for the PRIMARY pihole Raspberry Pi (pi@pihole)
 #
 # Files expected next to this file:
-#   config.yaml   - see config.yaml in this folder (fill in password env names)
+#   config.yaml   - copy config.example.yaml in this folder (fill in password env names)
 #   .env          - holds the actual passwords (never commit this)
 #
 # Uses network_mode: host so the syncer can reach:
 #   - the pihole running on THIS Pi            -> http://127.0.0.1:80
-#   - the replica pihole at 10.0.0.6           -> http://10.0.0.6:80
+#   - the replica pihole at 10.0.0.3           -> http://10.0.0.3:80
 #   (If your pihole web UI is on a different port, change the URL in config.yaml.)
 
 services:
