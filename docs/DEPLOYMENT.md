@@ -91,9 +91,10 @@ insecure-registry config needed for Docker Hub.
 ## Verifying a sync by hand
 
 ```bash
+# Stop the background syncer first; --once forces reconciliation.
 # On the syncer host — one full forced cycle, then exit:
 docker run --rm --env-file .env -v $PWD/config.yaml:/config/config.yaml:ro \
-  -v $PWD/data:/data 10.0.0.40:5000/pihole-sync:latest --once
+  -v $PWD/data:/data 10.0.0.40:5000/pihole-sync:latest python -m pihole_sync --once
 
 # What the API sees (replace host/password):
 docker exec -it pihole-sync python -c "..."   # or use the dashboard /api/status

@@ -8,3 +8,6 @@ deploy/.env
 specs/
 *.egg-info/
 .pytest_cache/
+
+# Local credentials used by the public Docker examples.
+.env
